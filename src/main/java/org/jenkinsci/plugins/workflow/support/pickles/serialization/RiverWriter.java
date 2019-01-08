@@ -24,29 +24,32 @@
 
 package org.jenkinsci.plugins.workflow.support.pickles.serialization;
 
-import org.jenkinsci.plugins.workflow.flow.FlowExecutionOwner;
-import org.jenkinsci.plugins.workflow.pickles.Pickle;
-import org.jenkinsci.plugins.workflow.pickles.PickleFactory;
-import org.jboss.marshalling.Marshaller;
-import org.jboss.marshalling.Marshalling;
-import org.jboss.marshalling.MarshallingConfiguration;
-import org.jboss.marshalling.ObjectResolver;
-import org.jboss.marshalling.river.RiverMarshallerFactory;
-
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.NotSerializableException;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+import org.jboss.marshalling.Marshaller;
+import org.jboss.marshalling.Marshalling;
+import org.jboss.marshalling.MarshallingConfiguration;
+import org.jboss.marshalling.ObjectResolver;
+import org.jboss.marshalling.TraceInformation;
+import org.jboss.marshalling.river.RiverMarshallerFactory;
 import org.jenkinsci.plugins.scriptsecurity.sandbox.Whitelist;
 import org.jenkinsci.plugins.scriptsecurity.sandbox.groovy.GroovySandbox;
+import org.jenkinsci.plugins.workflow.flow.FlowExecutionOwner;
+import org.jenkinsci.plugins.workflow.pickles.Pickle;
+import org.jenkinsci.plugins.workflow.pickles.PickleFactory;
 
 /**
  * {@link ObjectOutputStream} compatible object graph serializer
@@ -144,6 +147,9 @@ public class RiverWriter implements Closeable {
                 marshaller.writeObject(o);
                 return null;
             }, Whitelist.all());
+        } catch (NotSerializableException x) {
+          printObject(o);
+          throw x;
         } catch (IOException x) {
             throw x;
         } catch (RuntimeException x) {
@@ -151,6 +157,16 @@ public class RiverWriter implements Closeable {
         } catch (Exception x) {
             throw new AssertionError(x);
         }
+    }
+    
+    private void printObject(Object o) {
+      System.out.println("RiverWriter was writing object of type: " + o.getClass().getCanonicalName());
+      Field[] fields = o.getClass().getDeclaredFields();
+      for (int i = 0; i < fields.length; i++) {
+        Field field = fields[i];
+        field.setAccessible(true);
+        System.out.println("Field " + i + " is of type: " + field.getType().getCanonicalName());
+      }
     }
 
     /**
